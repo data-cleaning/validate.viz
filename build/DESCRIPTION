@@ -1,0 +1,14 @@
+Package: validate.viz
+Maintainer: Mark van der Loo <mark.vanderloo@gmail.com>
+License: GPL-3
+Title: Visualisations for the 'validate' package
+LazyData: no
+Type: Package
+LazyLoad: yes
+Author: Mark van der Loo, Edwin de Jonge
+Description: data quality indicators
+Version: 0.0.1
+Depends: R (>= 3.0.0), methods, validate
+URL: https://github.com/markvanderloo/validate
+Date: 2013-04-28
+Suggests: testthat
