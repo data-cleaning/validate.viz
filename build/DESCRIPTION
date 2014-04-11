@@ -8,7 +8,7 @@ LazyLoad: yes
 Author: Mark van der Loo, Edwin de Jonge
 Description: data quality indicators
 Version: 0.0.1
-Depends: R (>= 3.0.0), methods, validate, d3Network
+Depends: R (>= 3.0.0), validate, methods, d3Network
 URL: https://github.com/markvanderloo/validate
 Date: 2013-04-28
 Suggests: testthat
