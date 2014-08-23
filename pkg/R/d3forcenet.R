@@ -1,18 +1,20 @@
 
 #' Generic d3 plot function.
 #'
-#' @param x an R object
-#' @param ... options to be passed to other methods
+#' @param x an R object inheriging from \code{\link[validate]{expressionset}}
+#' @param y [optional] an R object inheriting fron \code{\link[validate]{confrontation}}
+#' @param ... options to be passed to d3forcegraph
 #' @export
-setGeneric("d3plot",def=function(x,...) standardGeneric("d3plot"))
+setGeneric("d3graph",def=function(x,y,...) standardGeneric("d3graph"))
 
 #' @rdname d3plot
 #'
 #' @param col named vector with colors for nodes representing variables, rules.
 #' @param r Radius of nodes (pixels) for nodes representing variables, rules
+#' 
 #'
 #' @export
-setMethod('d3plot',signature("validator"), 
+setMethod('d3graph',signature("validator"), 
   function(x, col=c(variable="#FFFFB3",rule="#80B1D3"), r=c(variable=7,rule=7), ...){
   nodes <- es_nodes(x)
     nodes$fill <- col[nodes$type]
@@ -22,6 +24,7 @@ setMethod('d3plot',signature("validator"),
     nodes$stroke <- 'black'
     nodes$stroke_width <- 1
     nodes$stroke_opacity <- 0.5
+  
   
   
   edges <- es_edges(x)
@@ -34,6 +37,44 @@ setMethod('d3plot',signature("validator"),
   d3forcenet(nodes,edges,...)
 })
 
+setMethod('d3graph',signature('validator','validation'),
+  function(x,y, col=c(rule="#FFFFB3",variable="#80B1D3"), r=c(variable=7,rule=7), ...){
+            
+  a <- aggregate(y)
+  nodes <- es_nodes(x)
+
+  irule <- nodes$type == 'rule'
+  
+  nodes$fill <- col[nodes$type]
+    nodes$fill <- col[nodes$type]
+    nodes$r[ irule] <- pixelize(1-a$rel.NA,min=5,max=15)
+    nodes$r[!irule] <- r['variable']
+    nodes$opacity <- 1
+    nodes$fill_opacity <- 1
+    nodes$stroke <- 'black'
+    nodes$stroke_width <- 1
+    nodes$stroke_opacity <- 0.5
+
+  
+    pal <- brewer.pal(10,"RdYlGn")[c(10,1)]
+    V <- colorRamp(pal)(with(a,nfail/(nfail+npass)))
+
+    nodes$fill[irule] <- rgb(V[,1],V[,2],V[,3],maxColorValue=255) 
+    lab <- paste(nodes$lab[irule],"| failed",a$nfail,"times,",a$nNA,"NA's")
+    nodes$label[irule] <- lab
+
+  
+  edges <- es_edges(x)
+    edges$source <- match(edges$source,nodes$name) - 1
+    edges$target <- match(edges$target,nodes$name) - 1
+    edges$stroke = 'grey'
+    edges$stroke_opacity = 0.5
+    edges$stroke_width = 2
+  
+  d3forcenet(nodes,edges,outer=TRUE,...)
+  
+  
+})
 
 
 #' Rule and/or variable nodes or edges from expressionset
@@ -41,6 +82,7 @@ setMethod('d3plot',signature("validator"),
 #' @section Details:
 #' The output of \code{es_nodes} and \code{es_edges} can be used to define \code{igraph} objects
 #' as follows: \code{igraph.data.frame(es_edges(x),vertices=es_nodes(x))}. 
+#' 
 #' 
 #' 
 #' @param x an object of class \code{expressionset}
@@ -52,16 +94,19 @@ es_nodes <- function(x, type=c('all','rules','variables'), dummy=FALSE){
   R <- V <- NULL
   
   i <- if ( dummy ) TRUE else sapply(x$calls(),function(x) x[[1]] != ':=')
-  
+
   if ( type %in% c('all','rules') )
-    R <- data.frame(name = names(x)[i], type  = 'rule',label=as.character(x)[i])
+    R <- data.frame(name = names(x)[i], type  = 'rule',label=as.character(x)[i], stringsAsFactors=FALSE)
   
   if ( type %in% c('all','variables') )
-    V <- data.frame(name=variables(x,dummy=dummy), type='variable',label=variables(x,dummy=dummy))
+    V <- data.frame(name=variables(x,dummy=dummy), type='variable',label=variables(x,dummy=dummy),stringsAsFactors=FALSE)
   
   
-  rbind(R,V)
-  
+  out <- rbind(R,V)
+  if (anyDuplicated(out$name))
+    warning("Found duplicated node names. Rendering a graph is probably inaccurate. (rules and
+            variables must have separate names).")
+  out
 }
 
 #' @rdname es_nodes
@@ -87,17 +132,23 @@ es_edges <- function(x, type=c('all','rules','variables'),dummy=FALSE){
 
 
 
-d3forcenet <- function(nodes, edges, open=TRUE, width=500, height=500, d3lib="http://d3js.org/d3.v3.min.js"){
+d3forcenet <- function(nodes, edges, open=TRUE
+      , width=500, height=500
+      , distance=40, d3lib="http://d3js.org/d3.v3.min.js"
+      , charge = -220
+      , outer = FALSE
+      ){
   e <- new.env()
   e$title <- ""
   e$d3lib <- d3lib
   e$height <- height
   e$width <- width
-  
+  e$outer <- outer
   
   
   e$graph <- as.json(list(nodes=as.json(nodes),edges=as.json(edges)))
-  e$distance <- 40
+  e$distance <- distance
+  e$charge <- charge
   html <- whisker.render(forcenet(),data=e)
   if ( open ){
     tmp <- tempfile(fileext = ".html")
@@ -130,7 +181,7 @@ forcenet <- function(){
 
 
   var force = d3.layout.force()
-    .charge(-220)
+    .charge({{{charge}}})
     .linkDistance({{{distance}}})
     .size([width, height]);
 
@@ -160,16 +211,27 @@ forcenet <- function(){
     .data(graph.edges)
     .enter().append("line")
     .attr("class","link")
-//    .attr("marker-end","url(#triangle)")
     .attr("stroke", function(d){ return d.stroke; })
     .attr("stroke-opacity",function(d){ return d.stroke_opacity; })
     .attr("stroke-width",function(d){ return d.stroke_width; });
 
 
-  var node = svg.selectAll(".node")
-    .data(graph.nodes)
-    .enter().append("circle")
+var node = svg.selectAll(".node")
+  .data(graph.nodes)
+    .enter().append("g")
     .attr("class","node")
+    .call(force.drag);
+
+// outer circles
+{{#outer}}
+node.append("circle")
+    .attr("r",15)
+    .style("fill-opacity",function(d) {if (d.type=="rule") {return 0.3;} else {return 0.0;};}  );
+{{/outer}}
+
+// inner circles
+  node.append("circle")
+    .attr("r",10)
     .attr("fill",function(d){ return d.fill; })
     .attr("r", function(d){ return d.r; })
     .attr("opacity", function(d){ return d.opacity; })
@@ -177,10 +239,14 @@ forcenet <- function(){
     .attr("stroke", function(d){ return d.stroke; })
     .attr("stroke-width", function(d){ return d.stroke_width; })
     .attr("stroke-opacity", function(d){ return d.stroke_opacity; })
-    .call(force.drag);
 
+// hover-over text
   node.append("title")
       .text(function(d){ return d.label; });
+
+// displayed text
+  node.append("text")
+    .text(function(d){return d.name;});
 
 
   force.on("tick", function() {
@@ -188,9 +254,8 @@ forcenet <- function(){
       .attr("y1", function(d) { return d.source.y; })
       .attr("x2", function(d) { return d.target.x; })
       .attr("y2", function(d) { return d.target.y; });
-
-    node.attr("cx", function(d) { return d.x; })
-      .attr("cy", function(d) { return d.y; });
+    
+    node.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
   });
 </script>
 
