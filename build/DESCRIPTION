@@ -9,7 +9,7 @@ Author: Mark van der Loo, Edwin de Jonge
 Description: A number of interactive, d3-based visualisations for the validate package.
 Version: 0.0.1
 Depends: R (>= 3.0.0)
-Imports: validate, whisker, methods
+Imports: validate, whisker, methods, RColorBrewer
 URL: https://github.com/markvanderloo/validate
 Date: 2013-04-28
 Suggests: testthat

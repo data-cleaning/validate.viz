@@ -1,64 +1,36 @@
 
 Id <- function(x) x
 
-#' Translate data to a number of pixels
-#' @param x a \code{numeric} vector
-#' @param min Minumum nr of pixels
-#' @param max Maximum nr of pixels
-#' @param scale A scaling function applied to x (\code{Id} means no scale)
-#' @export 
-#' 
-#' This interface is not general enough. It should be:
-#' pixelize <- function(x, domain=range(x), range, transform=Id)
-#' 
-#' 
-pixelize <- function(x, min=3, max=7, scale=Id){
-  stopifnot(is.numeric(x))
-  dx <- diff(range(x))
-  dy <- max - min
-  min + (x-min(x)) * dy/dx
-}
+setGeneric('rescale',def=function(x, domain, range, ...) standardGeneric('rescale'))
 
-#' Translate data to colors
-#' 
-#' @param x a vector
-#'
-#' @export
-colorize <- function(x,...){
-  UseMethod('colorize')
-}
+#  Transform a function to transform x and domain with prior to rescaling.
+setMethod('rescale',signature('numeric','numeric','numeric'), function(x,domain=range(x), range, transform=Id){
+  x <- transform(x)
+  dx <- diff(transform(domain))
+  dy <- diff(range)
+  range[1] + (x-domain[1]) * dy/dx  
+})
 
-#' @param palette A color palette. If missing \code{\link{RColorBrewer}}'s \code{Dark2} palette is chosen. 
-#' @rdname colorize
-colorize.factor <- function(x,palette=NULL,...){
-  
-  lev <- levels(x)
-  n <- length(lev)
-  if (is.null(palette)){ # RColorBrewer warns at n<=2
-    map <- brewer.pal(max(3,n),name="Dark2")[1:n]
-  } else {
-    map <- palette
-  }
-  names(map) <- lev
-  map[x]
-}
+setMethod('rescale',signature('numeric','matrix','numeric'), function(x, domain, range, transform=Id){
+  x <- transform(x)
+  dx <- transform(domain[,2]) - transform(domain[,1])
+  dy <- diff(range)
+  range[1] + (x - domain[,1]) * dy/dx
+})
 
-#' @rdname colorize
-#' @export
-colorize.character <- function(x,palette=NULL,...){
-  colorize.factor(as.factor(x),palette=palette,...)
-}
+setMethod('rescale',signature('numeric','matrix','matrix'), function(x, domain, range, transform=Id){
+  x <- transform(x)  
+  dx <- transform(domain[,2]) - transform(domain[,1])
+  dy <- range[,2] - range[,1]
+  range[,1] + (x - domain[,1]) * dy/dx
+})
 
-#' @rdname colorize
-#' @export 
-colorize.integer <- function(x,palette=NULL,...){
-  lev <- unique(x)
-  n <- length(lev)
-  i <- match(x,lev)
-  if (is.null(palette)){
-    map <- brewer.pal(max(3,n),name="Dark2")[1:n]
-  } else {
-    map <- palette
-  }
-  map[i]
-}
+setMethod('rescale',signature('numeric','numeric','matrix'),function(x, domain=range(x), range, transform=Id){
+  x <- transform(x)
+  dx <- diff(domain)
+  dy <- range[,2] - range[,1]
+  range[,1] + (x - domain[,1]) * dy/dx
+})
+
+
+

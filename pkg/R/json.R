@@ -4,7 +4,7 @@
 #' 
 #' @docType package
 #' @name validate.viz
-#' @import methods whisker validate
+#' @import methods whisker validate RColorBrewer
 NULL
 
 
